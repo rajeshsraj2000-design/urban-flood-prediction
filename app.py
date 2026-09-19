@@ -229,10 +229,7 @@ if page == "🏠 Home":
     st.subheader("🗺️ Flood Risk Map")
 
     try:
-        st.image(
-    "https://raw.githubusercontent.com/YOUR-USERNAME/urban-flood-prediction/main/flood_map.png",
-    width="stretch"
-        )
+        st.image("flood_map.png", width="stretch")
         st.caption(
             "QGIS-based Chennai prototype flood-risk map."
         )
