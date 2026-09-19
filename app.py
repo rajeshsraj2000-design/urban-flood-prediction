@@ -1,71 +1,158 @@
+import os
 import streamlit as st
 import pandas as pd
-import os
 import pydeck as pdk
 from sklearn.ensemble import RandomForestRegressor
 
-# -------------------------------------------------
-# PAGE SETTINGS
-# -------------------------------------------------
+
+# =========================================================
+# PAGE CONFIG
+# =========================================================
+
 st.set_page_config(
-    page_title="Urban Flood Nowcasting System",
+    page_title="Flood AI",
     page_icon="🌧️",
     layout="wide"
 )
 
-# -------------------------------------------------
+
+# =========================================================
 # CUSTOM CSS
-# -------------------------------------------------
+# =========================================================
+
 st.markdown("""
 <style>
 
-.main-title {
-    font-size: 42px;
-    font-weight: 800;
-    margin-bottom: 5px;
+.main {
+    background-color: #f5f7fa;
 }
 
-.subtitle {
-    font-size: 18px;
-    color: #666;
+.block-container {
+    padding-top: 1rem;
+    padding-bottom: 2rem;
+}
+
+h1 {
+    color: #0b3d91;
+}
+
+h2 {
+    color: #12355b;
+}
+
+h3 {
+    color: #12355b;
+}
+
+.metric-card {
+    background-color: white;
+    padding: 18px;
+    border-radius: 12px;
+    border: 1px solid #e1e5ea;
+    text-align: center;
 }
 
 .alert-box {
     padding: 15px;
     border-radius: 10px;
     background-color: #fff3cd;
-    border-left: 6px solid #ff9800;
-    margin-bottom: 20px;
+    border: 1px solid #ffe69c;
+    color: #664d03;
 }
 
-.section-title {
-    font-size: 25px;
-    font-weight: 700;
+.info-box {
+    padding: 15px;
+    border-radius: 10px;
+    background-color: #e7f1ff;
+    border: 1px solid #b6d4fe;
+}
+
+.success-box {
+    padding: 15px;
+    border-radius: 10px;
+    background-color: #d1e7dd;
+    border: 1px solid #a3cfbb;
+    color: #0f5132;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
-# -------------------------------------------------
-# HEADER
-# -------------------------------------------------
-st.markdown(
-    '<div class="main-title">🌧️ FLOOD AI</div>',
-    unsafe_allow_html=True
+
+# =========================================================
+# PROJECT DIRECTORY
+# =========================================================
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+CSV_FILE = os.path.join(BASE_DIR, "flood_data.csv")
+MAP_FILE = os.path.join(BASE_DIR, "flood_map.png")
+
+
+# =========================================================
+# LOAD DATA
+# =========================================================
+
+if not os.path.exists(CSV_FILE):
+
+    st.error("flood_data.csv was not found.")
+
+    st.stop()
+
+
+data = pd.read_csv(CSV_FILE)
+
+
+# =========================================================
+# MODEL
+# =========================================================
+
+required_columns = [
+    "Rainfall_mm",
+    "Elevation_m",
+    "Drainage_Score",
+    "Flood_Depth_cm"
+]
+
+for column in required_columns:
+
+    if column not in data.columns:
+
+        st.error(f"Required column missing: {column}")
+
+        st.stop()
+
+
+X = data[
+    [
+        "Rainfall_mm",
+        "Elevation_m",
+        "Drainage_Score"
+    ]
+]
+
+y = data["Flood_Depth_cm"]
+
+
+model = RandomForestRegressor(
+    n_estimators=100,
+    random_state=42
 )
 
-st.markdown(
-    '<div class="subtitle">Urban Flood Nowcasting & Decision Support System</div>',
-    unsafe_allow_html=True
-)
+model.fit(X, y)
 
-st.divider()
 
-# -------------------------------------------------
+# =========================================================
 # SIDEBAR
-# -------------------------------------------------
+# =========================================================
+
 st.sidebar.title("🌧️ FLOOD AI")
-st.sidebar.caption("Urban Flood Nowcasting System")
+
+st.sidebar.caption(
+    "Urban Flood Nowcasting & Decision Support System"
+)
+
+st.sidebar.markdown("---")
 
 page = st.sidebar.radio(
     "MENU",
@@ -81,168 +168,240 @@ page = st.sidebar.radio(
     ]
 )
 
-# -------------------------------------------------
+
+# =========================================================
 # SIMULATION INPUTS
-# -------------------------------------------------
-st.sidebar.divider()
+# =========================================================
+
+st.sidebar.markdown("---")
+
 st.sidebar.subheader("⚙️ Simulation")
+
 
 rainfall = st.sidebar.number_input(
     "Rainfall (mm)",
     min_value=0.0,
-    value=70.0
+    max_value=300.0,
+    value=70.0,
+    step=5.0
 )
+
 
 elevation = st.sidebar.number_input(
     "Elevation (m)",
     min_value=0.0,
-    value=7.0
+    max_value=100.0,
+    value=7.0,
+    step=1.0
 )
+
 
 drainage_condition = st.sidebar.selectbox(
     "Drainage Condition",
-    ["Good", "Poor", "Blocked"]
-)
-
-drainage_score = {
-    "Good": 3,
-    "Poor": 2,
-    "Blocked": 1
-}[drainage_condition]
-
-# -------------------------------------------------
-# LOAD DATA
-# -------------------------------------------------
-data = pd.read_csv("flood_data.csv")
-
-X = data[
     [
-        "Rainfall_mm",
-        "Elevation_m",
-        "Drainage_Score"
+        "Good",
+        "Poor",
+        "Blocked"
     ]
-]
-
-y = data["Flood_Depth_cm"]
-
-# -------------------------------------------------
-# TRAIN MODEL
-# -------------------------------------------------
-model = RandomForestRegressor(
-    n_estimators=100,
-    random_state=42
 )
 
-model.fit(X, y)
 
-# -------------------------------------------------
-# CURRENT PREDICTION
-# -------------------------------------------------
-new_data = pd.DataFrame({
-    "Rainfall_mm": [rainfall],
-    "Elevation_m": [elevation],
-    "Drainage_Score": [drainage_score]
-})
+# =========================================================
+# DRAINAGE SCORE
+# =========================================================
 
-prediction = model.predict(new_data)[0]
+if drainage_condition == "Good":
 
-# -------------------------------------------------
-# RISK
-# -------------------------------------------------
-if prediction < 5:
-    risk = "LOW"
-elif prediction < 15:
-    risk = "MEDIUM"
-elif prediction < 30:
-    risk = "HIGH"
+    drainage_score = 3
+
+elif drainage_condition == "Poor":
+
+    drainage_score = 2
+
 else:
-    risk = "VERY HIGH"
 
-# -------------------------------------------------
-# HOME
-# -------------------------------------------------
+    drainage_score = 1
+
+
+# =========================================================
+# FLOOD PREDICTION
+# =========================================================
+
+input_data = pd.DataFrame(
+    [
+        {
+            "Rainfall_mm": rainfall,
+            "Elevation_m": elevation,
+            "Drainage_Score": drainage_score
+        }
+    ]
+)
+
+
+prediction = model.predict(input_data)[0]
+
+prediction = max(0, prediction)
+
+
+# =========================================================
+# RISK LEVEL
+# =========================================================
+
+if prediction < 5:
+
+    risk = "LOW"
+    risk_icon = "🟢"
+
+elif prediction < 15:
+
+    risk = "MEDIUM"
+    risk_icon = "🟡"
+
+elif prediction < 30:
+
+    risk = "HIGH"
+    risk_icon = "🟠"
+
+else:
+
+    risk = "VERY HIGH"
+    risk_icon = "🔴"
+
+
+# =========================================================
+# HOME PAGE
+# =========================================================
+
 if page == "🏠 Home":
 
-    if prediction >= 15:
-        st.markdown(
-            f"""
-            <div class="alert-box">
-            ⚠️ <b>{risk} FLOOD RISK</b><br>
-            Flood-prone areas should be monitored.
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    st.title("🌧️ FLOOD AI")
 
-    st.header("🌧️ Urban Flood Nowcasting")
-
-    st.write(
-        "An AI-assisted prototype for predicting urban flood "
-        "depth using rainfall, elevation and drainage condition."
+    st.subheader(
+        "Urban Flood Nowcasting & Decision Support System"
     )
 
-    # Metrics
+
+    if risk == "LOW":
+
+        st.success(
+            "✅ LOW FLOOD RISK — Current conditions are relatively safe."
+        )
+
+    elif risk == "MEDIUM":
+
+        st.warning(
+            "⚠️ MEDIUM FLOOD RISK — Monitor flood-prone areas."
+        )
+
+    elif risk == "HIGH":
+
+        st.warning(
+            "⚠️ HIGH FLOOD RISK — Flood-prone areas should be monitored."
+        )
+
+    else:
+
+        st.error(
+            "🚨 VERY HIGH FLOOD RISK — Immediate monitoring is required."
+        )
+
+
+    st.markdown("---")
+
+
     st.subheader("📊 Live Situation")
+
 
     col1, col2, col3, col4 = st.columns(4)
 
+
     with col1:
+
         st.metric(
             "🌧️ Rainfall",
             f"{rainfall:.1f} mm"
         )
 
+
     with col2:
+
         st.metric(
             "🌊 Flood Depth",
             f"{prediction:.1f} cm"
         )
 
+
     with col3:
+
         st.metric(
             "⚠️ Risk",
-            risk
+            f"{risk_icon} {risk}"
         )
 
+
     with col4:
+
         st.metric(
             "🚰 Drainage",
             drainage_condition
         )
 
-    st.divider()
 
-    # Quick monitoring
+    st.markdown("---")
+
+
     st.subheader("⚡ Quick Monitoring")
 
-    q1, q2, q3 = st.columns(3)
 
-    with q1:
+    c1, c2, c3 = st.columns(3)
+
+
+    with c1:
+
         st.info("🌊 Flood Prediction")
 
-    with q2:
+    with c2:
+
         st.info("🗺️ Flood Map")
 
-    with q3:
+    with c3:
+
         st.info("🚑 Safe Route")
 
-    # QGIS map
-    st.subheader("🗺️ Flood Risk Map")
-      BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    MAP_FILE = os.path.join(BASE_DIR, "flood_map.png")
 
-if os.path.exists(MAP_FILE):
-    st.image(MAP_FILE, width="stretch")
-else:
-    st.error("Flood map image not found.")
-   
-    except Exception:
-        st.warning(
-            "Flood map image is not available."
+    st.markdown("---")
+
+
+    # =====================================================
+    # FLOOD RISK MAP IMAGE
+    # =====================================================
+
+    st.subheader("🗺️ Flood Risk Map")
+
+
+    if os.path.exists(MAP_FILE):
+
+        st.image(
+            MAP_FILE,
+            width="stretch"
         )
 
-    # System flow
+        st.caption(
+            "QGIS-based Chennai prototype flood-risk map."
+        )
+
+    else:
+
+        st.error(
+            "Flood map image not found."
+        )
+
+
+    st.markdown("---")
+
+
     st.subheader("🔄 How the System Works")
+
 
     st.markdown("""
     🌧️ **Rainfall**
@@ -272,776 +431,568 @@ else:
     🗺️ **Map + 🛣️ Roads + 🚑 Safe Route**
     """)
 
-    st.success(
-        "✅ Flood AI prototype is running successfully."
+
+    st.markdown(
+        '<div class="success-box">'
+        '✅ Flood AI prototype is running successfully.'
+        '</div>',
+        unsafe_allow_html=True
     )
 
 
-# -------------------------------------------------
-# FLOOD PREDICTION
-# -------------------------------------------------
+# =========================================================
+# FLOOD PREDICTION PAGE
+# =========================================================
+
 elif page == "🌊 Flood Prediction":
 
-    st.header("🌊 Flood Prediction")
+    st.title("🌊 Flood Prediction")
 
-    st.write(
-        "The Random Forest model predicts flood depth "
-        "from rainfall, elevation and drainage condition."
-    )
+
+    st.subheader("Current Prediction")
+
 
     col1, col2, col3 = st.columns(3)
 
+
     with col1:
+
         st.metric(
             "Rainfall",
             f"{rainfall:.1f} mm"
         )
 
-    with col2:
-        st.metric(
-            "Elevation",
-            f"{elevation:.1f} m"
-        )
 
-    with col3:
+    with col2:
+
         st.metric(
-            "Flood Depth",
+            "Predicted Flood Depth",
             f"{prediction:.1f} cm"
         )
 
-    st.divider()
 
-    if risk == "LOW":
-        st.success(f"🟢 Flood Risk: {risk}")
+    with col3:
 
-    elif risk == "MEDIUM":
-        st.warning(f"🟡 Flood Risk: {risk}")
+        st.metric(
+            "Risk",
+            f"{risk_icon} {risk}"
+        )
 
-    elif risk == "HIGH":
-        st.warning(f"🟠 Flood Risk: {risk}")
 
-    else:
-        st.error(f"🔴 Flood Risk: {risk}")
+    st.markdown("---")
 
-    st.subheader("📋 Input Data")
 
-    input_table = pd.DataFrame({
-        "Parameter": [
-            "Rainfall",
-            "Elevation",
-            "Drainage Condition",
-            "Drainage Score"
-        ],
-        "Value": [
-            f"{rainfall:.1f} mm",
-            f"{elevation:.1f} m",
-            drainage_condition,
-            drainage_score
-        ]
-    })
+    st.subheader("🤖 Machine Learning Model")
 
-    st.table(input_table)
 
-    st.info(
-        "⚠️ This prototype uses sample training data. "
-        "Real-time rainfall and terrain data can be integrated "
-        "in the next development stage."
+    st.write(
+        "The Random Forest model uses rainfall, elevation "
+        "and drainage condition to estimate flood depth."
     )
 
 
-# -------------------------------------------------
-# FLOOD MAP
-# -------------------------------------------------
+    st.dataframe(
+        input_data,
+        use_container_width=True
+    )
+
+
+# =========================================================
+# FLOOD MAP PAGE
+# =========================================================
+
 elif page == "🗺️ Flood Map":
 
-    st.header("🗺️ Flood Risk Map")
+    st.title("🗺️ Flood Map")
 
-    try:
+
+    st.subheader("QGIS Flood Risk Map")
+
+
+    if os.path.exists(MAP_FILE):
+
         st.image(
-            "flood_map.png",
+            MAP_FILE,
             width="stretch"
         )
 
-        st.caption(
-            "QGIS-based Chennai prototype flood-risk map."
-        )
+    else:
 
-    except Exception:
         st.error(
-            "❌ flood_map.png was not found."
+            "flood_map.png was not found."
         )
 
-    st.divider()
+
+    st.markdown("---")
+
+
+    # =====================================================
+    # INTERACTIVE FLOOD LOCATION MAP
+    # =====================================================
 
     st.subheader("📍 Interactive Flood Location Map")
 
-    map_data = data[
-        [
-            "Latitude",
-            "Longitude",
-            "Flood_Depth_cm"
-        ]
-    ].copy()
 
-    def map_status(depth):
+    if (
+        "Latitude" in data.columns
+        and
+        "Longitude" in data.columns
+    ):
 
-        if depth < 5:
-            return "SAFE"
+        map_data = data[
+            [
+                "Latitude",
+                "Longitude",
+                "Flood_Depth_cm"
+            ]
+        ].copy()
 
-        elif depth < 15:
-            return "CAUTION"
 
-        elif depth < 30:
-            return "FLOOD RISK"
+        map_data = map_data.dropna()
 
-        else:
-            return "AVOID"
 
-    map_data["Status"] = map_data[
-        "Flood_Depth_cm"
-    ].apply(map_status)
+        layer = pdk.Layer(
+            "ScatterplotLayer",
+            data=map_data,
+            get_position="[Longitude, Latitude]",
+            get_radius=250,
+            get_fill_color="[255, 80, 80, 180]",
+            pickable=True
+        )
 
-    def get_color(status):
 
-        if status == "SAFE":
-            return [0, 180, 0]
+        view_state = pdk.ViewState(
+            latitude=map_data["Latitude"].mean(),
+            longitude=map_data["Longitude"].mean(),
+            zoom=11
+        )
 
-        elif status == "CAUTION":
-            return [255, 200, 0]
 
-        elif status == "FLOOD RISK":
-            return [255, 120, 0]
+        deck = pdk.Deck(
+            layers=[layer],
+            initial_view_state=view_state,
+            tooltip={
+                "text": "Flood Depth: {Flood_Depth_cm} cm"
+            }
+        )
 
-        else:
-            return [220, 0, 0]
 
-    map_data["Color"] = map_data[
-        "Status"
-    ].apply(get_color)
+        st.pydeck_chart(deck)
 
-    layer = pdk.Layer(
-        "ScatterplotLayer",
-        data=map_data,
-        get_position="[Longitude, Latitude]",
-        get_fill_color="Color",
-        get_radius=250,
-        pickable=True
+
+    else:
+
+        st.warning(
+            "Latitude and Longitude columns are required "
+            "for the interactive map."
+        )
+
+
+# =========================================================
+# FORECAST PAGE
+# =========================================================
+
+elif page == "⏱️ Forecast":
+
+    st.title("⏱️ 0–3 Hour Flood Forecast")
+
+
+    st.write(
+        "Prototype forecast showing how flood depth "
+        "may change over the next three hours."
     )
 
-    view_state = pdk.ViewState(
-        latitude=13.0827,
-        longitude=80.2707,
-        zoom=10,
-        pitch=0
-    )
 
-    deck = pdk.Deck(
-        layers=[layer],
-        initial_view_state=view_state,
-        tooltip={
-            "text":
-            "Flood Depth: {Flood_Depth_cm} cm\n"
-            "Status: {Status}"
+    current_depth = prediction
+
+
+    forecast_data = pd.DataFrame(
+        {
+            "Time": [
+                "Now",
+                "+30 min",
+                "+1 hour",
+                "+2 hours",
+                "+3 hours"
+            ],
+
+            "Flood Depth (cm)": [
+                current_depth,
+                current_depth * 1.15,
+                current_depth * 1.30,
+                current_depth * 1.50,
+                current_depth * 1.70
+            ]
         }
     )
 
-    st.pydeck_chart(deck)
 
-    st.caption(
-        "🟢 Safe | 🟡 Caution | 🟠 Flood Risk | 🔴 Avoid"
+    st.dataframe(
+        forecast_data,
+        use_container_width=True
     )
 
-    st.caption(
-        "Prototype map uses sample Chennai coordinates."
-    )
-
-
-# -------------------------------------------------
-# FORECAST
-# -------------------------------------------------
-elif page == "⏱️ Forecast":
-
-    st.header("⏱️ 0–3 Hour Flood Forecast")
-
-    st.write(
-        "Prototype short-term flood-depth forecast."
-    )
-
-    forecast_data = pd.DataFrame({
-
-        "Time": [
-            "Now",
-            "+30 min",
-            "+1 hour",
-            "+2 hours",
-            "+3 hours"
-        ],
-
-        "Predicted Flood Depth (cm)": [
-
-            round(prediction, 1),
-
-            round(prediction * 1.15, 1),
-
-            round(prediction * 1.30, 1),
-
-            round(prediction * 1.50, 1),
-
-            round(prediction * 1.70, 1)
-        ]
-    })
-
-    st.table(forecast_data)
-
-    st.subheader("📈 Forecast Chart")
-
-    chart_data = forecast_data.set_index(
-        "Time"
-    )
 
     st.line_chart(
-        chart_data[
-            "Predicted Flood Depth (cm)"
-        ]
+        forecast_data.set_index("Time")
     )
 
-    st.warning(
-        "⚠️ This is a prototype forecast. "
-        "Real-time Doppler radar/nowcast data is not yet "
-        "connected."
-    )
-
-
-# -------------------------------------------------
-# ROADS
-# -------------------------------------------------
-elif page == "🛣️ Roads":
-
-    st.header("🛣️ Flooded Road Detection")
-
-    st.write(
-        "The system identifies roads that may become "
-        "unsafe based on predicted flood depth."
-    )
-
-    road_depths = pd.DataFrame({
-
-        "Road": [
-            "Road A",
-            "Road B",
-            "Road C",
-            "Road D"
-        ],
-
-        "Predicted Flood Depth (cm)": [
-
-            round(prediction * 0.25, 1),
-
-            round(prediction * 0.60, 1),
-
-            round(prediction, 1),
-
-            round(prediction * 1.40, 1)
-        ]
-    })
-
-    def get_status(depth):
-
-        if depth < 5:
-            return "🟢 SAFE"
-
-        elif depth < 15:
-            return "🟡 CAUTION"
-
-        elif depth < 30:
-            return "🟠 FLOOD RISK"
-
-        else:
-            return "🔴 AVOID"
-
-    road_depths["Status"] = road_depths[
-        "Predicted Flood Depth (cm)"
-    ].apply(get_status)
-
-    st.table(road_depths)
 
     st.info(
-        "Prototype road detection. "
-        "Actual OpenStreetMap/municipal road-network "
-        "data can be integrated later."
+        "This is a prototype forecast. Real-time radar/IMD "
+        "rainfall integration is planned for the next stage."
     )
 
 
-# -------------------------------------------------
-# DRAINAGE
-# -------------------------------------------------
-elif page == "🚰 Drainage":
+# =========================================================
+# ROADS PAGE
+# =========================================================
 
-    st.header("🚰 Urban Drainage Network")
+elif page == "🛣️ Roads":
 
-    st.write(
-        "The drainage network represents manholes, "
-        "junctions, pipes and outlet points."
+    st.title("🛣️ Flooded Road Detection")
+
+
+    road_data = pd.DataFrame(
+        {
+            "Road": [
+                "Road A",
+                "Road B",
+                "Road C",
+                "Road D"
+            ],
+
+            "Predicted Depth (cm)": [
+                prediction * 0.6,
+                prediction * 1.2,
+                prediction * 0.8,
+                prediction * 1.5
+            ]
+        }
     )
 
-    drainage_data = pd.DataFrame({
 
-        "Node": [
-            "Manhole M1",
-            "Junction J1",
-            "Junction J2",
-            "Outlet O1"
-        ],
+    def road_status(depth):
 
-        "Type": [
-            "Inlet",
-            "Junction",
-            "Junction",
-            "Outlet"
-        ],
+        if depth < 10:
 
-        "Pipe Capacity (L/s)": [
-            1000,
-            800,
-            600,
-            1000
-        ],
+            return "🟢 Safe"
 
-        "Incoming Flow (L/s)": [
-            700,
-            900,
-            750,
-            750
-        ]
-    })
+        elif depth < 25:
 
-    def drainage_status(row):
+            return "🟡 Caution"
 
-        if row["Incoming Flow (L/s)"] <= row[
-            "Pipe Capacity (L/s)"
-        ]:
+        elif depth < 40:
 
-            return "🟢 Normal"
+            return "🟠 Flooded"
 
         else:
 
-            return "🔴 Over Capacity"
+            return "🔴 Highly Flooded"
 
-    drainage_data["Status"] = drainage_data.apply(
-        drainage_status,
-        axis=1
+
+    road_data["Status"] = road_data[
+        "Predicted Depth (cm)"
+    ].apply(road_status)
+
+
+    st.dataframe(
+        road_data,
+        use_container_width=True
     )
 
-    st.table(drainage_data)
 
-    # Blockage
-    st.subheader("🚧 Drainage Blockage Analysis")
+# =========================================================
+# DRAINAGE PAGE
+# =========================================================
 
-    blockage = st.selectbox(
-        "Select Drainage Condition",
-        [
-            "No Blockage",
-            "Partial Blockage",
-            "Severe Blockage"
-        ]
+elif page == "🚰 Drainage":
+
+    st.title("🚰 Urban Drainage Network")
+
+
+    drainage_table = pd.DataFrame(
+        {
+            "Node": [
+                "N1",
+                "N2",
+                "N3",
+                "N4",
+                "N5"
+            ],
+
+            "Type": [
+                "Manhole",
+                "Manhole",
+                "Junction",
+                "Pump",
+                "Outfall"
+            ],
+
+            "Condition": [
+                "Good",
+                "Poor",
+                "Blocked",
+                "Good",
+                "Good"
+            ],
+
+            "Capacity (L/s)": [
+                1000,
+                800,
+                500,
+                1200,
+                1500
+            ]
+        }
     )
 
-    if blockage == "No Blockage":
-        blockage_factor = 1.0
 
-    elif blockage == "Partial Blockage":
-        blockage_factor = 0.6
-
-    else:
-        blockage_factor = 0.3
-
-    base_capacity = 1000
-
-    effective_capacity = (
-        base_capacity * blockage_factor
+    st.dataframe(
+        drainage_table,
+        use_container_width=True
     )
 
-    st.metric(
-        "Effective Drainage Capacity",
-        f"{effective_capacity:.0f} L/s"
-    )
 
-    if effective_capacity < 700:
+    st.markdown("---")
+
+
+    st.subheader("🚨 Drainage Blockage Analysis")
+
+
+    if drainage_condition == "Blocked":
 
         st.error(
-            "🔴 Drainage capacity is insufficient. "
-            "Surcharge and surface flooding may occur."
+            "🚨 Drainage blockage detected. "
+            "Effective drainage capacity may be reduced."
+        )
+
+    elif drainage_condition == "Poor":
+
+        st.warning(
+            "⚠️ Poor drainage condition detected."
         )
 
     else:
 
         st.success(
-            "🟢 Drainage capacity is currently sufficient."
+            "✅ Drainage condition is good."
         )
 
-    # Drainage network map
-    st.subheader("🗺️ Drainage Network Flow Map")
 
-    st.write(
-        "The network shows the direction of stormwater "
-        "flow through manholes, junctions and outlet."
-    )
+    st.markdown("---")
 
-    drainage_nodes = pd.DataFrame({
 
-        "Node": [
-            "M1",
-            "J1",
-            "J2",
-            "O1"
-        ],
+    st.subheader("🔄 Drainage Network Flow Map")
 
-        "Latitude": [
-            13.0827,
-            13.0850,
-            13.0800,
-            13.0870
-        ],
 
-        "Longitude": [
-            80.2707,
-            80.2750,
-            80.2650,
-            80.2800
-        ],
+    flow_data = pd.DataFrame(
+        {
+            "start_lat": [
+                13.0827,
+                13.0850,
+                13.0800,
+                13.0870
+            ],
 
-        "Type": [
-            "Manhole",
-            "Junction",
-            "Junction",
-            "Outlet"
-        ]
-    })
+            "start_lon": [
+                80.2707,
+                80.2750,
+                80.2650,
+                80.2800
+            ],
 
-    pipe_map_data = pd.DataFrame({
+            "end_lat": [
+                13.0850,
+                13.0800,
+                13.0870,
+                13.0780
+            ],
 
-        "Start": [
-            "M1",
-            "J1",
-            "J2"
-        ],
-
-        "End": [
-            "J1",
-            "J2",
-            "O1"
-        ],
-
-        "Flow": [
-            700,
-            900,
-            750
-        ],
-
-        "Status": [
-            "Normal",
-            "Over Capacity",
-            "Over Capacity"
-        ],
-
-        "Start_Lon": [
-            80.2707,
-            80.2750,
-            80.2650
-        ],
-
-        "Start_Lat": [
-            13.0827,
-            13.0850,
-            13.0800
-        ],
-
-        "End_Lon": [
-            80.2750,
-            80.2650,
-            80.2800
-        ],
-
-        "End_Lat": [
-            13.0850,
-            13.0800,
-            13.0870
-        ]
-    })
-
-    normal_pipes = pipe_map_data[
-        pipe_map_data["Status"] == "Normal"
-    ]
-
-    risk_pipes = pipe_map_data[
-        pipe_map_data["Status"] == "Over Capacity"
-    ]
-
-    normal_layer = pdk.Layer(
-        "LineLayer",
-        data=normal_pipes,
-        get_source_position=[
-            "Start_Lon",
-            "Start_Lat"
-        ],
-        get_target_position=[
-            "End_Lon",
-            "End_Lat"
-        ],
-        get_width=6,
-        get_color=[0, 120, 255]
-    )
-
-    risk_layer = pdk.Layer(
-        "LineLayer",
-        data=risk_pipes,
-        get_source_position=[
-            "Start_Lon",
-            "Start_Lat"
-        ],
-        get_target_position=[
-            "End_Lon",
-            "End_Lat"
-        ],
-        get_width=8,
-        get_color=[220, 0, 0]
-    )
-
-    node_layer = pdk.Layer(
-        "ScatterplotLayer",
-        data=drainage_nodes,
-        get_position=[
-            "Longitude",
-            "Latitude"
-        ],
-        get_radius=180,
-        get_fill_color=[255, 165, 0],
-        pickable=True
-    )
-
-    drainage_view = pdk.ViewState(
-        latitude=13.0830,
-        longitude=80.2720,
-        zoom=13,
-        pitch=0
-    )
-
-    drainage_deck = pdk.Deck(
-        layers=[
-            normal_layer,
-            risk_layer,
-            node_layer
-        ],
-        initial_view_state=drainage_view,
-        tooltip={
-            "text":
-            "Node: {Node}\nType: {Type}"
+            "end_lon": [
+                80.2750,
+                80.2650,
+                80.2800,
+                80.2600
+            ]
         }
     )
 
-    st.pydeck_chart(drainage_deck)
 
-    st.caption(
-        "🔵 Normal drainage pipe | "
-        "🔴 Over-capacity drainage pipe | "
-        "🟠 Node"
-    )
-
-    # Pipe flow
-    st.subheader("💧 Drainage Pipe Flow")
-
-    pipe_data = pd.DataFrame({
-
-        "Pipe": [
-            "M1 → J1",
-            "J1 → J2",
-            "J2 → O1"
-        ],
-
-        "Flow Rate (L/s)": [
-            700,
-            900,
-            750
-        ],
-
-        "Status": [
-            "🟢 Normal",
-            "🔴 Over Capacity",
-            "🔴 Over Capacity"
-        ]
-    })
-
-    st.table(pipe_data)
-
-    st.info(
-        "💧 Stormwater flows from the inlet/manhole "
-        "through junctions and finally reaches the outlet."
+    line_layer = pdk.Layer(
+        "LineLayer",
+        data=flow_data,
+        get_source_position="[start_lon, start_lat]",
+        get_target_position="[end_lon, end_lat]",
+        get_width=5,
+        pickable=True
     )
 
 
-# -------------------------------------------------
-# SAFE ROUTE
-# -------------------------------------------------
+    view_state = pdk.ViewState(
+        latitude=13.0827,
+        longitude=80.2707,
+        zoom=11
+    )
+
+
+    deck = pdk.Deck(
+        layers=[line_layer],
+        initial_view_state=view_state
+    )
+
+
+    st.pydeck_chart(deck)
+
+
+    st.markdown("---")
+
+
+    st.subheader("🚰 Drainage Pipe Flow")
+
+
+    pipe_flow = pd.DataFrame(
+        {
+            "Pipe": [
+                "P1",
+                "P2",
+                "P3",
+                "P4"
+            ],
+
+            "Capacity (L/s)": [
+                1000,
+                800,
+                600,
+                1200
+            ],
+
+            "Estimated Flow (L/s)": [
+                rainfall * 8,
+                rainfall * 6,
+                rainfall * 7,
+                rainfall * 9
+            ]
+        }
+    )
+
+
+    st.dataframe(
+        pipe_flow,
+        use_container_width=True
+    )
+
+
+# =========================================================
+# SAFE ROUTE PAGE
+# =========================================================
+
 elif page == "🚑 Safe Route":
 
-    st.header("🚑 Flood-Safe Route Suggestion")
+    st.title("🚑 Flood-Safe Route Suggestion")
+
 
     st.write(
-        "The prototype compares routes based on predicted "
-        "flood depth."
+        "The system demonstrates how roads with higher "
+        "predicted flood depth can be avoided."
     )
 
-    route_data = pd.DataFrame({
 
-        "Route": [
-            "Route A",
-            "Route B",
-            "Route C"
-        ],
+    route_data = pd.DataFrame(
+        {
+            "Road": [
+                "Road A",
+                "Road B",
+                "Road C",
+                "Road D"
+            ],
 
-        "Predicted Flood Depth (cm)": [
-            8,
-            18,
-            32
-        ]
-    })
+            "Flood Depth (cm)": [
+                prediction * 0.6,
+                prediction * 1.2,
+                prediction * 0.8,
+                prediction * 1.5
+            ]
+        }
+    )
 
-    st.table(route_data)
 
-    safe_route = route_data.loc[
-        route_data[
-            "Predicted Flood Depth (cm)"
-        ].idxmin(),
-        "Route"
-    ]
+    safe_road = route_data.loc[
+        route_data["Flood Depth (cm)"].idxmin()
+    ]["Road"]
 
-    safe_depth = route_data[
-        "Predicted Flood Depth (cm)"
-    ].min()
 
     st.success(
-        f"🚑 Suggested Safer Route: "
-        f"{safe_route} "
-        f"({safe_depth} cm predicted flood depth)"
+        f"🚑 Suggested safer road: **{safe_road}**"
     )
+
+
+    st.dataframe(
+        route_data,
+        use_container_width=True
+    )
+
 
     st.info(
-        "Prototype demonstration. "
-        "Future version can use real road-network "
-        "and GIS routing data."
+        "This is a prototype route recommendation. "
+        "A real navigation API can be integrated in the next stage."
     )
 
 
-# -------------------------------------------------
-# ABOUT
-# -------------------------------------------------
+# =========================================================
+# ABOUT PAGE
+# =========================================================
+
 elif page == "ℹ️ About":
 
-    st.header("ℹ️ About the Project")
+    st.title("ℹ️ About Flood AI")
 
-    st.write(
-        "Urban Flood Nowcasting System is an AI-assisted "
-        "prototype designed to predict urban flood risk "
-        "at a local level."
+
+    st.subheader(
+        "Urban Flood Nowcasting & Decision Support System"
     )
 
-    st.subheader("🎯 Main Objective")
 
     st.write(
-        "Predict flood depth and risk using rainfall, "
-        "elevation and drainage conditions."
+        """
+        This project is a working prototype for urban flood
+        prediction and decision support.
+        """
     )
 
-    st.subheader("🤖 Technologies Used")
 
-    technologies = pd.DataFrame({
-
-        "Technology": [
-            "Python",
-            "Random Forest",
-            "QGIS",
-            "Streamlit",
-            "PyDeck",
-            "CSV Dataset"
-        ],
-
-        "Purpose": [
-            "Data processing and prediction",
-            "Flood prediction model",
-            "Flood-risk mapping",
-            "Web dashboard",
-            "Interactive maps",
-            "Prototype training data"
-        ]
-    })
-
-    st.table(technologies)
-
-    st.subheader("🔄 System Architecture")
+    st.markdown("### 🎯 Main Objectives")
 
     st.markdown("""
-    🌧️ Rainfall Data
-
-    ↓
-
-    🗺️ DEM / Elevation
-
-    ↓
-
-    🚰 Drainage Network
-
-    ↓
-
-    🤖 Machine Learning
-
-    ↓
-
-    🌊 Flood Depth Prediction
-
-    ↓
-
-    🚨 Flood Risk
-
-    ↓
-
-    🗺️ GIS Dashboard
-
-    ↓
-
-    🛣️ Flood-Safe Route
+    - Predict flood depth
+    - Estimate flood risk
+    - Display flood-risk maps
+    - Provide 0–3 hour prototype forecast
+    - Identify potentially flooded roads
+    - Analyse drainage conditions
+    - Demonstrate flood-safe route suggestion
     """)
 
-    st.subheader("🚀 Future Development")
 
-    st.write("""
-    • Real-time Doppler radar rainfall integration
+    st.markdown("### 🧠 Technologies Used")
 
-    • High-resolution DEM integration
-
-    • Actual urban drainage network
-
-    • OpenStreetMap road-network integration
-
-    • Real-time 0–3 hour flood nowcasting
-
-    • Emergency route optimisation
-
-    • Mobile application
+    st.markdown("""
+    - Python
+    - Pandas
+    - Scikit-learn
+    - Random Forest
+    - Streamlit
+    - PyDeck
+    - QGIS
+    - CSV-based prototype data
     """)
 
-    st.warning(
-        "⚠️ Current version is a working prototype using "
-        "sample data. It is not yet a validated real-time "
-        "Chennai flood prediction system."
+
+    st.markdown("### 🚧 Current Status")
+
+    st.info(
+        "Currently this is a working prototype using sample "
+        "rainfall, elevation, drainage and flood-depth data. "
+        "Real-time IMD/radar rainfall and actual road/drainage "
+        "network integration are planned as the next stage."
     )
-
-# -------------------------------------------------
-# FOOTER
-# -------------------------------------------------
-st.divider()
-
-st.caption(
-    "🌧️ Urban Flood Nowcasting System | "
-    "AI-assisted prototype | "
-    "Sample data demonstration"
-)
