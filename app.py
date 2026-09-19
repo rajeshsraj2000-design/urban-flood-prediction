@@ -228,7 +228,7 @@ if page == "🏠 Home":
 
     # QGIS map
     st.subheader("🗺️ Flood Risk Map")
-   BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+      BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     MAP_FILE = os.path.join(BASE_DIR, "flood_map.png")
 
 if os.path.exists(MAP_FILE):
