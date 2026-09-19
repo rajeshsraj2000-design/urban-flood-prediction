@@ -230,8 +230,8 @@ if page == "🏠 Home":
 
     try:
         st.image(
-            "flood_map.png",
-            width="stretch"
+    "https://raw.githubusercontent.com/YOUR-USERNAME/urban-flood-prediction/main/flood_map.png",
+    width="stretch"
         )
         st.caption(
             "QGIS-based Chennai prototype flood-risk map."
