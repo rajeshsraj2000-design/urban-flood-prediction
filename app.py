@@ -17,39 +17,24 @@ st.set_page_config(
 
 
 # =========================================================
-# CUSTOM CSS
+# PATHS
+# =========================================================
+
+BASE_DIR = os.path.dirname(os.path.realpath(__file__))
+
+CSV_FILE = os.path.join(BASE_DIR, "flood_data.csv")
+MAP_FILE = os.path.join(BASE_DIR, "flood_map.png")
+
+
+# =========================================================
+# CSS
 # =========================================================
 
 st.markdown("""
 <style>
 
-.main {
-    background-color: #f5f7fa;
-}
-
 .block-container {
     padding-top: 1rem;
-    padding-bottom: 2rem;
-}
-
-h1 {
-    color: #0b3d91;
-}
-
-h2 {
-    color: #12355b;
-}
-
-h3 {
-    color: #12355b;
-}
-
-.metric-card {
-    background-color: white;
-    padding: 18px;
-    border-radius: 12px;
-    border: 1px solid #e1e5ea;
-    text-align: center;
 }
 
 .alert-box {
@@ -57,14 +42,6 @@ h3 {
     border-radius: 10px;
     background-color: #fff3cd;
     border: 1px solid #ffe69c;
-    color: #664d03;
-}
-
-.info-box {
-    padding: 15px;
-    border-radius: 10px;
-    background-color: #e7f1ff;
-    border: 1px solid #b6d4fe;
 }
 
 .success-box {
@@ -72,7 +49,6 @@ h3 {
     border-radius: 10px;
     background-color: #d1e7dd;
     border: 1px solid #a3cfbb;
-    color: #0f5132;
 }
 
 </style>
@@ -80,22 +56,14 @@ h3 {
 
 
 # =========================================================
-# PROJECT DIRECTORY
+# LOAD CSV
 # =========================================================
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if not os.path.isfile(CSV_FILE):
 
-CSV_FILE = os.path.join(BASE_DIR, "flood_data.csv")
-MAP_FILE = os.path.join(BASE_DIR, "flood_map.png")
+    st.error("❌ flood_data.csv was not found.")
 
-
-# =========================================================
-# LOAD DATA
-# =========================================================
-
-if not os.path.exists(CSV_FILE):
-
-    st.error("flood_data.csv was not found.")
+    st.write("App folder:", BASE_DIR)
 
     st.stop()
 
@@ -104,7 +72,7 @@ data = pd.read_csv(CSV_FILE)
 
 
 # =========================================================
-# MODEL
+# CHECK REQUIRED COLUMNS
 # =========================================================
 
 required_columns = [
@@ -114,14 +82,24 @@ required_columns = [
     "Flood_Depth_cm"
 ]
 
-for column in required_columns:
+missing_columns = [
+    col for col in required_columns
+    if col not in data.columns
+]
 
-    if column not in data.columns:
+if missing_columns:
 
-        st.error(f"Required column missing: {column}")
+    st.error(
+        "Missing columns: "
+        + ", ".join(missing_columns)
+    )
 
-        st.stop()
+    st.stop()
 
+
+# =========================================================
+# RANDOM FOREST MODEL
+# =========================================================
 
 X = data[
     [
@@ -170,7 +148,7 @@ page = st.sidebar.radio(
 
 
 # =========================================================
-# SIMULATION INPUTS
+# SIMULATION
 # =========================================================
 
 st.sidebar.markdown("---")
@@ -206,35 +184,26 @@ drainage_condition = st.sidebar.selectbox(
 )
 
 
-# =========================================================
-# DRAINAGE SCORE
-# =========================================================
-
 if drainage_condition == "Good":
-
     drainage_score = 3
 
 elif drainage_condition == "Poor":
-
     drainage_score = 2
 
 else:
-
     drainage_score = 1
 
 
 # =========================================================
-# FLOOD PREDICTION
+# PREDICTION
 # =========================================================
 
 input_data = pd.DataFrame(
-    [
-        {
-            "Rainfall_mm": rainfall,
-            "Elevation_m": elevation,
-            "Drainage_Score": drainage_score
-        }
-    ]
+    [{
+        "Rainfall_mm": rainfall,
+        "Elevation_m": elevation,
+        "Drainage_Score": drainage_score
+    }]
 )
 
 
@@ -244,7 +213,7 @@ prediction = max(0, prediction)
 
 
 # =========================================================
-# RISK LEVEL
+# RISK
 # =========================================================
 
 if prediction < 5:
@@ -269,7 +238,7 @@ else:
 
 
 # =========================================================
-# HOME PAGE
+# HOME
 # =========================================================
 
 if page == "🏠 Home":
@@ -308,14 +277,13 @@ if page == "🏠 Home":
 
     st.markdown("---")
 
-
     st.subheader("📊 Live Situation")
 
 
-    col1, col2, col3, col4 = st.columns(4)
+    c1, c2, c3, c4 = st.columns(4)
 
 
-    with col1:
+    with c1:
 
         st.metric(
             "🌧️ Rainfall",
@@ -323,7 +291,7 @@ if page == "🏠 Home":
         )
 
 
-    with col2:
+    with c2:
 
         st.metric(
             "🌊 Flood Depth",
@@ -331,7 +299,7 @@ if page == "🏠 Home":
         )
 
 
-    with col3:
+    with c3:
 
         st.metric(
             "⚠️ Risk",
@@ -339,7 +307,7 @@ if page == "🏠 Home":
         )
 
 
-    with col4:
+    with c4:
 
         st.metric(
             "🚰 Drainage",
@@ -349,99 +317,114 @@ if page == "🏠 Home":
 
     st.markdown("---")
 
-
     st.subheader("⚡ Quick Monitoring")
 
 
-    c1, c2, c3 = st.columns(3)
+    q1, q2, q3 = st.columns(3)
 
 
-    with c1:
-
+    with q1:
         st.info("🌊 Flood Prediction")
 
-    with c2:
 
+    with q2:
         st.info("🗺️ Flood Map")
 
-    with c3:
 
+    with q3:
         st.info("🚑 Safe Route")
 
 
     st.markdown("---")
 
-
     # =====================================================
-    # FLOOD RISK MAP IMAGE
+    # FLOOD RISK MAP
     # =====================================================
 
     st.subheader("🗺️ Flood Risk Map")
 
 
-    if os.path.exists(MAP_FILE):
+    if os.path.isfile(MAP_FILE):
 
-        st.image(
-            MAP_FILE,
-            width="stretch"
-        )
+        try:
 
-        st.caption(
-            "QGIS-based Chennai prototype flood-risk map."
-        )
+            with open(MAP_FILE, "rb") as image_file:
+
+                image_bytes = image_file.read()
+
+
+            st.image(
+                image_bytes,
+                width="stretch"
+            )
+
+
+            st.caption(
+                "QGIS-based Chennai prototype flood-risk map."
+            )
+
+        except Exception as e:
+
+            st.error(
+                "Unable to load flood map image."
+            )
+
+            st.code(str(e))
 
     else:
 
         st.error(
-            "Flood map image not found."
+            "❌ flood_map.png was not found."
         )
+
+        st.write(
+            "Expected file location:"
+        )
+
+        st.code(MAP_FILE)
 
 
     st.markdown("---")
-
 
     st.subheader("🔄 How the System Works")
 
 
     st.markdown("""
-    🌧️ **Rainfall**
+🌧️ **Rainfall**
 
-    ↓
+↓
 
-    🗺️ **Elevation / Terrain**
+🗺️ **Elevation / Terrain**
 
-    ↓
+↓
 
-    🚰 **Drainage Condition**
+🚰 **Drainage Condition**
 
-    ↓
+↓
 
-    🤖 **Machine Learning**
+🤖 **Machine Learning**
 
-    ↓
+↓
 
-    🌊 **Flood Depth**
+🌊 **Flood Depth**
 
-    ↓
+↓
 
-    🚨 **Flood Risk**
+🚨 **Flood Risk**
 
-    ↓
+↓
 
-    🗺️ **Map + 🛣️ Roads + 🚑 Safe Route**
-    """)
+🗺️ **Map + 🛣️ Roads + 🚑 Safe Route**
+""")
 
 
-    st.markdown(
-        '<div class="success-box">'
-        '✅ Flood AI prototype is running successfully.'
-        '</div>',
-        unsafe_allow_html=True
+    st.success(
+        "✅ Flood AI prototype is running successfully."
     )
 
 
 # =========================================================
-# FLOOD PREDICTION PAGE
+# FLOOD PREDICTION
 # =========================================================
 
 elif page == "🌊 Flood Prediction":
@@ -449,13 +432,10 @@ elif page == "🌊 Flood Prediction":
     st.title("🌊 Flood Prediction")
 
 
-    st.subheader("Current Prediction")
+    c1, c2, c3 = st.columns(3)
 
 
-    col1, col2, col3 = st.columns(3)
-
-
-    with col1:
+    with c1:
 
         st.metric(
             "Rainfall",
@@ -463,15 +443,15 @@ elif page == "🌊 Flood Prediction":
         )
 
 
-    with col2:
+    with c2:
 
         st.metric(
-            "Predicted Flood Depth",
+            "Flood Depth",
             f"{prediction:.1f} cm"
         )
 
 
-    with col3:
+    with c3:
 
         st.metric(
             "Risk",
@@ -486,8 +466,8 @@ elif page == "🌊 Flood Prediction":
 
 
     st.write(
-        "The Random Forest model uses rainfall, elevation "
-        "and drainage condition to estimate flood depth."
+        "Random Forest uses rainfall, elevation and "
+        "drainage condition to estimate flood depth."
     )
 
 
@@ -498,7 +478,7 @@ elif page == "🌊 Flood Prediction":
 
 
 # =========================================================
-# FLOOD MAP PAGE
+# FLOOD MAP
 # =========================================================
 
 elif page == "🗺️ Flood Map":
@@ -509,26 +489,29 @@ elif page == "🗺️ Flood Map":
     st.subheader("QGIS Flood Risk Map")
 
 
-    if os.path.exists(MAP_FILE):
+    if os.path.isfile(MAP_FILE):
+
+        with open(MAP_FILE, "rb") as image_file:
+
+            image_bytes = image_file.read()
+
 
         st.image(
-            MAP_FILE,
+            image_bytes,
             width="stretch"
         )
 
     else:
 
         st.error(
-            "flood_map.png was not found."
+            "❌ flood_map.png was not found."
         )
+
+        st.code(MAP_FILE)
 
 
     st.markdown("---")
 
-
-    # =====================================================
-    # INTERACTIVE FLOOD LOCATION MAP
-    # =====================================================
 
     st.subheader("📍 Interactive Flood Location Map")
 
@@ -545,62 +528,62 @@ elif page == "🗺️ Flood Map":
                 "Longitude",
                 "Flood_Depth_cm"
             ]
-        ].copy()
+        ].dropna()
 
 
-        map_data = map_data.dropna()
+        if len(map_data) > 0:
+
+            layer = pdk.Layer(
+                "ScatterplotLayer",
+                data=map_data,
+                get_position="[Longitude, Latitude]",
+                get_radius=250,
+                get_fill_color="[255, 80, 80, 180]",
+                pickable=True
+            )
 
 
-        layer = pdk.Layer(
-            "ScatterplotLayer",
-            data=map_data,
-            get_position="[Longitude, Latitude]",
-            get_radius=250,
-            get_fill_color="[255, 80, 80, 180]",
-            pickable=True
-        )
+            view_state = pdk.ViewState(
+                latitude=map_data["Latitude"].mean(),
+                longitude=map_data["Longitude"].mean(),
+                zoom=11
+            )
 
 
-        view_state = pdk.ViewState(
-            latitude=map_data["Latitude"].mean(),
-            longitude=map_data["Longitude"].mean(),
-            zoom=11
-        )
+            deck = pdk.Deck(
+                layers=[layer],
+                initial_view_state=view_state,
+                tooltip={
+                    "text":
+                    "Flood Depth: {Flood_Depth_cm} cm"
+                }
+            )
 
 
-        deck = pdk.Deck(
-            layers=[layer],
-            initial_view_state=view_state,
-            tooltip={
-                "text": "Flood Depth: {Flood_Depth_cm} cm"
-            }
-        )
+            st.pydeck_chart(deck)
 
 
-        st.pydeck_chart(deck)
+        else:
+
+            st.warning(
+                "No valid coordinate data available."
+            )
 
 
     else:
 
         st.warning(
-            "Latitude and Longitude columns are required "
-            "for the interactive map."
+            "Latitude and Longitude columns are required."
         )
 
 
 # =========================================================
-# FORECAST PAGE
+# FORECAST
 # =========================================================
 
 elif page == "⏱️ Forecast":
 
     st.title("⏱️ 0–3 Hour Flood Forecast")
-
-
-    st.write(
-        "Prototype forecast showing how flood depth "
-        "may change over the next three hours."
-    )
 
 
     current_depth = prediction
@@ -639,13 +622,13 @@ elif page == "⏱️ Forecast":
 
 
     st.info(
-        "This is a prototype forecast. Real-time radar/IMD "
-        "rainfall integration is planned for the next stage."
+        "Prototype forecast. Real-time IMD/radar rainfall "
+        "integration is planned as the next stage."
     )
 
 
 # =========================================================
-# ROADS PAGE
+# ROADS
 # =========================================================
 
 elif page == "🛣️ Roads":
@@ -675,19 +658,15 @@ elif page == "🛣️ Roads":
     def road_status(depth):
 
         if depth < 10:
-
             return "🟢 Safe"
 
         elif depth < 25:
-
             return "🟡 Caution"
 
         elif depth < 40:
-
             return "🟠 Flooded"
 
         else:
-
             return "🔴 Highly Flooded"
 
 
@@ -703,7 +682,7 @@ elif page == "🛣️ Roads":
 
 
 # =========================================================
-# DRAINAGE PAGE
+# DRAINAGE
 # =========================================================
 
 elif page == "🚰 Drainage":
@@ -763,8 +742,7 @@ elif page == "🚰 Drainage":
     if drainage_condition == "Blocked":
 
         st.error(
-            "🚨 Drainage blockage detected. "
-            "Effective drainage capacity may be reduced."
+            "🚨 Drainage blockage detected."
         )
 
     elif drainage_condition == "Poor":
@@ -884,18 +862,12 @@ elif page == "🚰 Drainage":
 
 
 # =========================================================
-# SAFE ROUTE PAGE
+# SAFE ROUTE
 # =========================================================
 
 elif page == "🚑 Safe Route":
 
     st.title("🚑 Flood-Safe Route Suggestion")
-
-
-    st.write(
-        "The system demonstrates how roads with higher "
-        "predicted flood depth can be avoided."
-    )
 
 
     route_data = pd.DataFrame(
@@ -918,8 +890,9 @@ elif page == "🚑 Safe Route":
 
 
     safe_road = route_data.loc[
-        route_data["Flood Depth (cm)"].idxmin()
-    ]["Road"]
+        route_data["Flood Depth (cm)"].idxmin(),
+        "Road"
+    ]
 
 
     st.success(
@@ -934,13 +907,13 @@ elif page == "🚑 Safe Route":
 
 
     st.info(
-        "This is a prototype route recommendation. "
-        "A real navigation API can be integrated in the next stage."
+        "Prototype route recommendation. "
+        "Real navigation API integration can be added later."
     )
 
 
 # =========================================================
-# ABOUT PAGE
+# ABOUT
 # =========================================================
 
 elif page == "ℹ️ About":
@@ -955,44 +928,42 @@ elif page == "ℹ️ About":
 
     st.write(
         """
-        This project is a working prototype for urban flood
-        prediction and decision support.
-        """
+This project is a working prototype for urban flood
+prediction and decision support.
+"""
     )
 
 
     st.markdown("### 🎯 Main Objectives")
 
     st.markdown("""
-    - Predict flood depth
-    - Estimate flood risk
-    - Display flood-risk maps
-    - Provide 0–3 hour prototype forecast
-    - Identify potentially flooded roads
-    - Analyse drainage conditions
-    - Demonstrate flood-safe route suggestion
-    """)
+- Predict flood depth
+- Estimate flood risk
+- Display flood-risk maps
+- Provide 0–3 hour prototype forecast
+- Identify potentially flooded roads
+- Analyse drainage conditions
+- Demonstrate flood-safe route suggestion
+""")
 
 
     st.markdown("### 🧠 Technologies Used")
 
     st.markdown("""
-    - Python
-    - Pandas
-    - Scikit-learn
-    - Random Forest
-    - Streamlit
-    - PyDeck
-    - QGIS
-    - CSV-based prototype data
-    """)
+- Python
+- Pandas
+- Scikit-learn
+- Random Forest
+- Streamlit
+- PyDeck
+- QGIS
+- CSV
+""")
 
-
-    st.markdown("### 🚧 Current Status")
 
     st.info(
         "Currently this is a working prototype using sample "
         "rainfall, elevation, drainage and flood-depth data. "
-        "Real-time IMD/radar rainfall and actual road/drainage "
-        "network integration are planned as the next stage."
+        "Real-time IMD/radar and actual road/drainage network "
+        "integration are planned as the next stage."
     )
