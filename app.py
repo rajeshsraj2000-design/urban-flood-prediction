@@ -228,12 +228,14 @@ if page == "🏠 Home":
 
     # QGIS map
     st.subheader("🗺️ Flood Risk Map")
+   BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    MAP_FILE = os.path.join(BASE_DIR, "flood_map.png")
 
-    try:
-        st.image("flood_map.png", width="stretch")
-        st.caption(
-            "QGIS-based Chennai prototype flood-risk map."
-        )
+if os.path.exists(MAP_FILE):
+    st.image(MAP_FILE, width="stretch")
+else:
+    st.error("Flood map image not found.")
+   
     except Exception:
         st.warning(
             "Flood map image is not available."
